@@ -3,7 +3,7 @@ import torch.optim
 from secml.ml import CClassifierPyTorch
 
 from tinynet import ExpandableCNN_mnist, ExpandableFcReLu_mnist, RandomFourier, ResNet
-from utils.folder import CNN_MNIST, FC_MNIST, RF_CIFAR10, RESN_CIFAR10
+from folder import CNN_MNIST, FC_MNIST, RF_CIFAR10, RESN_CIFAR10
 
 def get_models_and_path(ds, network, expansions):
     if ds == "mnist":

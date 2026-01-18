@@ -3,21 +3,10 @@
 This repository is used to perform the security evaluation of models with increasing size of model parameters. 
 
 ## Abstract
-Thanks to their extensive capacity, over-parameterized neural networks exhibit superior
-predictive capabilities and generalization. However, having a large parameter space is
-considered one of the main suspects of the neural networks’ vulnerability to adversarial
-examples— input samples crafted ad-hoc to induce a desired misclassification. Rele-
-vant literature has claimed contradictory remarks in support of and against the robust-
-ness of over-parameterized networks. These contradictory findings might be due to the
-failure of the attack employed to evaluate the networks’ robustness. Previous research
-has demonstrated that depending on the considered model, the algorithm employed to
-generate adversarial examples may not function properly, leading to overestimating the
-model’s robustness. In this work, we empirically study the robustness of over-param-
-eterized networks against adversarial examples. However, unlike the previous works,
-we also evaluate the considered attack’s reliability to support the results’ veracity. Our
-results show that over-parameterized networks are robust against adversarial attacks as
-opposed to their under-parameterized counterparts.\
-**Authors** Zhang Chena(Northwestern Polytechnical University, Xi’an, China), Luca Demetrio(University of Cagliari, University of Genova), Srishti Gupta(University of Cagliari, University of Roma La Sapienza), Xiaoyi Feng(Northwestern Polytechnical University, Xi’an, China), Zhaoqiang Xia(Northwestern Polytechnical University, Xi’an, China), Antonio Emanuele Cina(University of Cagliari, University of Genova), Maura Pintor(University of Cagliari), Luca Oneto(University of Cagliari, University of Genova), Ambra Demontis(University of Cagliari), Battista Biggio (University of Cagliari), Fabio Roli(University of Cagliari, University of Genova)\
+Thanks to their extensive capacity, over-parameterized neural networks exhibit superior predictive capabilities and generalization. However, having a large parameter space is considered one of the main suspects of the neural networks’ vulnerability to adversarial
+examples— input samples crafted ad-hoc to induce a desired misclassification. Relevant literature has claimed contradictory remarks in support of and against the robustness of over-parameterized networks. These contradictory findings might be due to the failure of the attack employed to evaluate the networks’ robustness. Previous research has demonstrated that depending on the considered model, the algorithm employed to generate adversarial examples may not function properly, leading to overestimating the model’s robustness. In this work, we empirically study the robustness of over-parameterized networks against adversarial examples. However, unlike the previous works, we also evaluate the considered attack’s reliability to support the results’ veracity. Our results show that over-parameterized networks are robust against adversarial attacks as opposed to their under-parameterized counterparts.\
+
+**Authors** Srishti Gupta(University of Cagliari, University of Roma La Sapienza), Zhang Chena(Northwestern Polytechnical University, Xi’an, China), Luca Demetrio(University of Cagliari, University of Genova), , Xiaoyi Feng(Northwestern Polytechnical University, Xi’an, China), Zhaoqiang Xia(Northwestern Polytechnical University, Xi’an, China), Antonio Emanuele Cina(University of Cagliari, University of Genova), Maura Pintor(University of Cagliari), Luca Oneto(University of Cagliari, University of Genova), Ambra Demontis(University of Cagliari), Battista Biggio (University of Cagliari), Fabio Roli(University of Cagliari, University of Genova)\
 
 For further details, please refer to our [paper](https://arxiv.org/abs/2406.10090)
 

@@ -126,7 +126,7 @@ if __name__ == "__main__":
         if ds_name == "mnist":
             epochs = config.EPOCH1
         elif ds_name == "cifar10":
-            epochs = config.EPOCH5  # changed for rerun 18/01
+            epochs = config.EPOCH3  # changed for rerun 18/01
 
     if ds_name == "mnist":
         input_shape = config.MNIST_INPUT_SHAPE
@@ -204,14 +204,14 @@ if __name__ == "__main__":
 
     print("[INFO] Attacking the model begins ...")
 
-    # if attack == "pgdl2":
-    #     runPGDL2attack_secml(attack, parameters, clfs, tr_secml, ts_secml, sec_eval_folder, epsilons, solver_params, noise_type, lb, ub, y_target)
-    #     print(f"\n[INFO] Plotting security evaluation plots {ds_name}-{model} - {attack}...")
-    #     plot_robustness_performance(ds_name, model_name, attack, parameters, sec_eval_folder, ts_acc)
-    # elif attack == "autoattack":
-    #     runAutoAttack_pytorch(attack, parameters, clfs, sec_eval_folder, epsilons, dataset.test_loader)
-    #     print(f"\n[INFO] Plotting security evaluation plots {ds_name}-{model} - {attack}...")
-    #     plot_robustness_performance(ds_name, model_name, attack, parameters, sec_eval_folder, ts_acc)
+    if attack == "pgdl2":
+        runPGDL2attack_secml(attack, parameters, clfs, tr_secml, ts_secml, sec_eval_folder, epsilons, solver_params, noise_type, lb, ub, y_target)
+        print(f"\n[INFO] Plotting security evaluation plots {ds_name}-{model} - {attack}...")
+        plot_robustness_performance(ds_name, model_name, attack, parameters, sec_eval_folder, ts_acc)
+    elif attack == "autoattack":
+        runAutoAttack_pytorch(attack, parameters, clfs, sec_eval_folder, epsilons, dataset.test_loader)
+        print(f"\n[INFO] Plotting security evaluation plots {ds_name}-{model} - {attack}...")
+        plot_robustness_performance(ds_name, model_name, attack, parameters, sec_eval_folder, ts_acc)
 
     
     
