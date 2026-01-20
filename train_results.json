@@ -1,0 +1,72 @@
+{
+  "cifar10::resnet::cap1": {
+    "capacity": 1,
+    "num_parameters": 175258,
+    "best_epoch": 684,
+    "train_acc": 0.922975,
+    "train_error": 0.07702500000000001,
+    "val_acc": 0.8872,
+    "val_error": 0.11280000000000001,
+    "checkpoint": "checkpoints/cifar10_ScalableResNet_1.pt"
+  },
+  "cifar10::resnet::cap2": {
+    "capacity": 2,
+    "num_parameters": 696618,
+    "best_epoch": 780,
+    "train_acc": 0.96725,
+    "train_error": 0.032749999999999946,
+    "val_acc": 0.9134,
+    "val_error": 0.08660000000000001,
+    "checkpoint": "checkpoints/cifar10_ScalableResNet_2.pt"
+  },
+  "cifar10::resnet::cap4": {
+    "capacity": 4,
+    "num_parameters": 2777674,
+    "best_epoch": 954,
+    "train_acc": 0.98425,
+    "train_error": 0.015750000000000042,
+    "val_acc": 0.9238,
+    "val_error": 0.07620000000000005,
+    "checkpoint": "checkpoints/cifar10_ScalableResNet_4.pt"
+  },
+  "cifar10::resnet::cap6": {
+    "capacity": 6,
+    "num_parameters": 6243178,
+    "best_epoch": 644,
+    "train_acc": 0.98395,
+    "train_error": 0.01605000000000001,
+    "val_acc": 0.9282,
+    "val_error": 0.07179999999999997,
+    "checkpoint": "checkpoints/cifar10_ScalableResNet_6.pt"
+  },
+  "cifar10::resnet::cap16": {
+    "capacity": 16,
+    "num_parameters": 44337418,
+    "best_epoch": 950,
+    "train_acc": 0.99425,
+    "train_error": 0.005750000000000033,
+    "val_acc": 0.9375,
+    "val_error": 0.0625,
+    "checkpoint": "checkpoints/cifar10_ScalableResNet_16.pt"
+  },
+  "cifar10::resnet::cap8": {
+    "capacity": 8,
+    "num_parameters": 11093130,
+    "best_epoch": 577,
+    "train_acc": 0.9906,
+    "train_error": 0.009399999999999964,
+    "val_acc": 0.9332,
+    "val_error": 0.06679999999999997,
+    "checkpoint": "checkpoints/cifar10_ScalableResNet_8.pt"
+  },
+  "cifar10::resnet::cap10": {
+    "capacity": 10,
+    "num_parameters": 17327530,
+    "best_epoch": 562,
+    "train_acc": 0.99105,
+    "train_error": 0.008950000000000014,
+    "val_acc": 0.9377,
+    "val_error": 0.06230000000000002,
+    "checkpoint": "checkpoints/cifar10_ScalableResNet_10.pt"
+  }
+}

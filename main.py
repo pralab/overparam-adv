@@ -219,14 +219,14 @@ if __name__ == "__main__":
         assert fixed_cfg is not None, "Run hyperparameter search first."
 
         for i, cap in enumerate(args.capacity):
-            ckpt_path = f"checkpoints/{args.dataset}_{model_class.__name__}_{cap}.pt"
+            ckpt_path = f"checkpoints_lr/{args.dataset}_{model_class.__name__}_{cap}.pt"
 
             if checkpoint_exists(ckpt_path):
                 print(f"[SKIP] Checkpoint exists for capacity={cap}")
                 continue
             
             model = model_class(capacity=args.capacity[i], num_classes=10)
-            print(f"Training model: {i} with {model.num_parameters()} params")
+            print(f"Training model: {cap} with {model.num_parameters()} params")
             
             result = train_network(
                 model = model,
@@ -257,7 +257,7 @@ if __name__ == "__main__":
                 model_name=args.model,
                 capacity=cap,
                 result_dict=train_result_payload,
-                results_path="train_results.json"
+                results_path="train_results_lr0.1.json"
             )
 
     elif args.mode == "test":

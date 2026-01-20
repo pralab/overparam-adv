@@ -1,0 +1,12 @@
+{
+  "cifar10::resnet::cap16": {
+    "capacity": 16,
+    "num_parameters": 44337418,
+    "best_epoch": 190,
+    "train_acc": 0.864725,
+    "train_error": 0.13527500000000003,
+    "val_acc": 0.8548,
+    "val_error": 0.1452,
+    "checkpoint": "checkpoints_lr0.1/cifar10_ScalableResNet_16.pt"
+  }
+}
