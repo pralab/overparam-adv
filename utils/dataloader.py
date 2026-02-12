@@ -13,57 +13,79 @@ def set_global_seed(seed: int):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-def get_train_transform(dataset, ds_normalization=True):
-    """
-    Returns train transform for MNIST or CIFAR10.
-    """
-    if ds_normalization:
-        if dataset.lower() == "mnist":
-            transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.1307,), (0.3081,)),
-                transforms.Lambda(lambda img: img.reshape(-1))  # flatten
-            ])
-        else:  # cifar10
-            transform = transforms.Compose([
-                transforms.RandomCrop(28, padding=0),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize((0.4916, 0.4824, 0.4467),
-                                     (0.0299, 0.0295, 0.0318))
-            ])
-    else:
-        transform = transforms.ToTensor()
-    return transform
 
-def get_test_transform(dataset, ds_normalization=True):
+def get_train_transform(dataset, ds_normalization=False):
+    print(f"[TRAIN TRANSFORM] Input normlization is set to {ds_normalization}")
+
+    if ds_normalization is True:
+        if dataset == "mnist":
+            transform = transforms.Compose([transforms.ToTensor(),
+                                            transforms.Normalize(
+                                                (0.1307,), (0.3081,)),
+                                            transforms.Lambda(lambda img: img.reshape(-1))
+                                            ])
+        else:
+            transform = transforms.Compose([transforms.RandomCrop(28, padding=0),
+                                            transforms.RandomHorizontalFlip(),
+                                            transforms.ToTensor(),
+                                            transforms.Normalize((0.4916, 0.4824, 0.4467),
+                                                                 (0.0299, 0.0295, 0.0318))
+                                            ])
+        return transform
+
+
+    else:
+        if dataset == "mnist":
+            transform = transforms.Compose([transforms.ToTensor()]) #,transforms.Lambda(lambda img: img.reshape(-1))])
+        else:
+            transform = transforms.Compose([transforms.RandomCrop(28, padding=0),
+                                            transforms.RandomHorizontalFlip(),
+                                            transforms.ToTensor(),
+                                            ])
+        return transform
+    
+def get_test_transform(dataset, ds_normalization=False):
+
     """
-    Returns test/validation transform for MNIST or CIFAR10.
+    Transofrmations for test data for mnist and cifar10
     """
-    if ds_normalization:
-        if dataset.lower() == "mnist":
-            transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.1307,), (0.3081,)),
-                transforms.Lambda(lambda img: img.reshape(-1))
-            ])
+    print(f"[TEST TRANSFORM] Input normlization is set to {ds_normalization}")
+    if ds_normalization is True:
+        if dataset == "mnist":
+            transform = transforms.Compose([transforms.ToTensor(),
+                                            transforms.Normalize(
+                                                (0.1307,), (0.3081,)),
+                                            transforms.Lambda(lambda img: img.reshape(-1))
+                                            ])
         else:
             transform = transforms.Compose([
-                transforms.Resize(28),
-                transforms.ToTensor(),
-                transforms.Normalize((0.4916, 0.4824, 0.4467),
-                                     (0.0299, 0.0295, 0.0318))
-            ])
+                                            transforms.Resize(28),
+                                            transforms.ToTensor(),
+                                            transforms.Normalize((0.4916, 0.4824, 0.4467),
+                                                                 (0.0299, 0.0295, 0.0318))
+                                            ])
+        return transform
     else:
-        transform = transforms.ToTensor()
-    return transform
+        if dataset == "mnist":
+            transform = transforms.Compose([transforms.ToTensor()]) #,transforms.Lambda(lambda img: img.reshape(-1))])
+        else:
+            transform = transforms.Compose([
+                                            transforms.Resize(28),
+                                            transforms.ToTensor(),
+                                            ])
+        return transform
+
+
+
 
 def get_data_loaders(
     dataset_name: str,
     batch_size: int = 128,
     train_subset: float = 1.0,
-    ds_normalization: bool = True,
+    test_subset: float = 1.0,
+    ds_normalization: bool = False,
     seed: int = 42,
+    model_name: str = "mlp",
     num_workers: int = 2
 ):
     """
@@ -85,9 +107,9 @@ def get_data_loaders(
     g = torch.Generator()
     g.manual_seed(seed)
 
-    # ---------- Transforms ----------
-    train_transform = get_train_transform(dataset_name, ds_normalization)
-    test_transform = get_test_transform(dataset_name, ds_normalization)
+    # ---------- Transforms ----------  
+    train_transform = get_train_transform(dataset_name, ds_normalization)   # SG: Removed model_name argument since train transform is same for all models
+    test_transform = get_test_transform(dataset_name, ds_normalization)     # SG: Removed model_name argument since test transform is same for all models
 
     # ---------- Load full dataset ----------
     if dataset_name == "mnist":
@@ -114,6 +136,14 @@ def get_data_loaders(
         full_train, _ = random_split(
             full_train,
             [subset_size, len(full_train) - subset_size],
+            generator=g
+        )
+
+    if test_subset < 1.0:
+        subset_size = int(len(test_dataset) * test_subset)
+        test_dataset, _ = random_split(
+            test_dataset,
+            [subset_size, len(test_dataset) - subset_size],
             generator=g
         )
 

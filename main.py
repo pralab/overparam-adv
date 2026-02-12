@@ -2,12 +2,24 @@ import torch
 import torch.nn as nn
 from itertools import product
 import argparse
+from utils.attacks import eval_autoattack_l2, eval_secml_pgd, eval_foolbox_pgd_linf
 from utils.dataloader import *
 from utils.models import *
 from tqdm import tqdm
 from utils.utils import *
+
 from copy import deepcopy
 import math
+
+from secml.ml.peval.metrics import CMetricAccuracy
+
+"""
+This is the main entry point for training and evaluating models. It supports three modes of operation:
+1. Hyperparameter search: runs a grid search over optimizers and learning rates to find the best configuration for each (dataset, model) pair. Saves results to fixed_hyperparams.json. 
+2. Training: trains models for each capacity using the best hyperparameters found in the search phase. Saves checkpoints and training results to train_results.json.
+3. Running attacks: evaluates trained models against specified adversarial attacks (PGD-L2, PGD-L∞, AutoAttack) and saves results to results/sec_eval_{dataset}_{model}_{attack}_results.json. This mode also gets clean accuracy (ε=0) for reference.
+
+"""
 
 HYPERPARAM_GRID = {
     "sgd": {
@@ -27,23 +39,42 @@ MODEL_REGISTRY = {
     "mlp": ScalableMLP,
 }
 
+EPS_REGISTRY = {
+        "pgdl2":{
+            ("mnist", "mlp"):   np.linspace(0.1, 3.0, 5),
+            ("mnist", "cnn"):   np.linspace(0.01, 1.0, 5),
+            ("cifar10", "resnet"): np.linspace(0.005, 0.3, 5)
+        },
+        "pgdlinf": {
+            ("mnist", "mlp"):   np.linspace(0.01, 0.15, 5),
+            ("mnist", "cnn"):   np.linspace(0.01, 0.07, 5),
+            ("cifar10", "resnet"): np.linspace(0.0001, 0.01, 5)
+        },
+        "autoattack": {
+            ("mnist", "mlp"):   np.linspace(0.1, 2.0, 5),
+            ("mnist", "cnn"):   np.linspace(0.01, 1.0, 5),
+            ("cifar10", "resnet"): np.linspace(0.005, 0.25, 5)
+        }
+}
+
     
 def train_network(
     model,
+    input_size,
+    in_channels,
     model_kwargs: dict,
     train_loader,
     val_loader,
     device,
     optimizer_name: str,
     hyperparams: dict,
-    max_epochs: int = 1000,
+    max_epochs: int,
     criterion=nn.CrossEntropyLoss(),
     save_path: str = None
 ):
     
     """
-    Trains a model using a small hyperparameter grid search until
-    validation error reaches zero (interpolation point).
+    Trains a model using parameters from the hyperparameter grid search 
 
     Args:
         model_class: ScalableResNet / ScalableCNN / ScalableMLP
@@ -67,7 +98,7 @@ def train_network(
             "checkpoint": save_path
         }
 
-    model = model_class(**model_kwargs).to(device)
+    model = model_class(input_size = inp_size, in_channels = in_channels,**model_kwargs).to(device)
     optimizer = build_optimizer(model, optimizer_name=optimizer_name, hyperparams=hyperparams)
     
     best_val_error = math.inf
@@ -158,6 +189,16 @@ def train_network(
     }
 
 
+@torch.no_grad()
+def eval_clean(model, x, y):
+    model.eval()
+    preds = model(x).argmax(dim=1)
+    acc = (preds == y).float().mean().item()
+    return {
+        "accuracy": acc,
+        "error_rate": 1.0 - acc
+    }
+
 if __name__ == "__main__":
     args = parse_args()
 
@@ -166,13 +207,28 @@ if __name__ == "__main__":
     device = torch.device(
         args.device if torch.cuda.is_available() else "cpu"
     )
-
+    if args.dataset == "mnist":
+        inp_size, in_channels, num_classes = 28, 1, 10
+        capacities = range(1, 11)
+        if args.model =='mlp':
+            tr_epochs = 500
+        elif args.model == 'cnn':
+            tr_epochs = 200
+    elif args.dataset == "cifar10":
+        inp_size, in_channels, num_classes = 32, 3, 10
+        capacities = [1, 2, 4, 6, 8, 10, 16, 20, 24, 26] # 22, 28
+        # capacities = [22]
+        if args.model =='resnet':
+            tr_epochs = 1000
+    
+    # tr_epochs = args.tr_epochs
     model_class = MODEL_REGISTRY[args.model]
+
+    ds_normalization = False
 
     # for cap in args.capacity:
     print("=" * 80)
     
-
     # ------------------------------
     # Data loaders
     # ------------------------------
@@ -180,7 +236,10 @@ if __name__ == "__main__":
         dataset_name=args.dataset,
         batch_size=args.batch_size,
         train_subset=args.train_subset,
-        seed=args.seed
+        test_subset=args.test_subset,
+        seed=args.seed,
+        model_name = args.model,
+        ds_normalization=ds_normalization
     )
         
     # ------------------------------
@@ -193,7 +252,8 @@ if __name__ == "__main__":
             dataset_name=args.dataset,
             batch_size=args.batch_size,
             train_subset=0.2,
-            seed=args.seed
+            seed=args.seed,
+            model_name = args.model
         )
             
         best_cfg = run_hyperparam_search(
@@ -202,6 +262,8 @@ if __name__ == "__main__":
             train_loader = small_train,
             val_loader = small_val,
             hp_epochs = args.hp_epochs,
+            input_size = inp_size,
+            in_channels = in_channels,
             device = device
         )
 
@@ -219,7 +281,7 @@ if __name__ == "__main__":
         assert fixed_cfg is not None, "Run hyperparameter search first."
 
         for i, cap in enumerate(args.capacity):
-            ckpt_path = f"checkpoints_lr/{args.dataset}_{model_class.__name__}_{cap}.pt"
+            ckpt_path = f"checkpoints/{args.dataset}_{model_class.__name__}_{cap}.pt"
 
             if checkpoint_exists(ckpt_path):
                 print(f"[SKIP] Checkpoint exists for capacity={cap}")
@@ -227,16 +289,19 @@ if __name__ == "__main__":
             
             model = model_class(capacity=args.capacity[i], num_classes=10)
             print(f"Training model: {cap} with {model.num_parameters()} params")
+            print(f"for {tr_epochs} epochs")
             
             result = train_network(
                 model = model,
+                input_size = inp_size,
+                in_channels = in_channels,
                 model_kwargs={"capacity": cap, "num_classes": 10},
                 train_loader=train_loader,
                 val_loader=val_loader,
                 device=device,
                 optimizer_name=fixed_cfg["optimizer"],
                 hyperparams=fixed_cfg["hyperparams"],
-                max_epochs=1000,
+                max_epochs=tr_epochs,
                 save_path=ckpt_path
             )
 
@@ -257,75 +322,119 @@ if __name__ == "__main__":
                 model_name=args.model,
                 capacity=cap,
                 result_dict=train_result_payload,
-                results_path="train_results_lr0.1.json"
+                results_path="train_results.json"
             )
 
-    elif args.mode == "test":
-        print(f"TEST EVAL: model={args.model}, dataset={args.dataset} from saved checkpoints")
+    elif args.mode == "run_attacks":
+        print(f"RUN ATTACKS: model={args.model}, dataset={args.dataset} for {args.attack}")
+        assert args.attack is not None, "Specify an attack to run in this mode."
+        assert args.test_subset is not None, "Specify test subset fraction for evaluation - NOT ADVISED TO USE FULL TEST SET FOR ADV EVAL (long runtime)"
+        output_path = f"results/sec_eval_{args.dataset}_{args.model}_{args.attack}_results.json"
+
+        x_test, y_test = collect_full_test_set(test_loader, device)
+
+        results = {
+            "dataset": args.dataset,
+            "model": args.model,
+            "attack": args.attack,
+            "results": {}
+        }
+
+        
         # print("\nRunning test evaluation from saved checkpoints")
 
-        for i, cap in enumerate(args.capacity):
-            ckpt_path = f"checkpoints/{args.dataset}_{model_class.__name__}_{i}.pt"
+        for i, cap in enumerate(capacities):
+
+            print(f"[INFO] Evaluating cap={cap}")
+
+            model = model_class(capacity=cap, num_classes=num_classes,
+                          input_size=inp_size, in_channels=in_channels).to(device)
+
+            ckpt_path = f"checkpoints/{args.dataset}_{model_class.__name__}_{cap}.pt"
+            print(f"\t Loading checkpoint from {ckpt_path}")
+            print(f"\t {model.num_parameters()} params")
+            model.load(ckpt_path, cap=cap, map_location=device)
+            model.eval()
 
             if not checkpoint_exists(ckpt_path):
                 print(f"[SKIP] No checkpoint for capacity={cap}")
                 continue
+            cap_key = f"cap_{cap}"
+            results["results"][cap_key] = {}
 
-            model = model_class(capacity=cap, num_classes=10).to(device)
-            model.load(ckpt_path, cap, map_location=device)
+            # ---------------- CLEAN ----------------
+            if args.attack == "clean":
+                stats = eval_clean(model, x_test, y_test)
+                results["results"][cap_key]["clean"] = stats
+                continue
 
-            test_metrics = model.evaluate(test_loader, device)
+            # ---------------- ADVERSARIAL ----------------
+            elif args.attack == "autoattack":
+                epsilons = EPS_REGISTRY[args.attack][(args.dataset, args.model)]
+                    
+                stats = eval_autoattack_l2(
+                    args,
+                    model=model,
+                    test_loader=test_loader,
+                    epsilons=epsilons,
+                    device=device,
+                    batch_size=args.batch_size
+                )
+                for eps, acc in zip(epsilons, stats.values()):
+                    results["results"][cap_key][f"eps_{eps}"] = acc
 
-            test_result_payload = {
-                "model ": i,
-                "capacity": cap,
-                "num_parameters": model.num_parameters(),
-                "test": test_metrics
-            }
+            elif args.attack == "pgdl2":
+                epsilons = EPS_REGISTRY[args.attack][(args.dataset, args.model)]
+                norm="l2"
+                metric = CMetricAccuracy()
+                print(f"[INFO] Running PGD-L2 for epsilons = {epsilons}")
+                solver_params, lb, ub, y_target = get_pgd_attack_hyperparams(args.dataset)
+                # lower, upper = get_normalized_bounds(args)
+                stats = eval_secml_pgd(
+                    args,
+                    model=model,
+                    num_classes=num_classes,
+                    eps_list=epsilons,         # pass full list
+                    lower=lb,
+                    upper=ub,
+                    norm=norm,
+                    y_target=y_target,
+                    train_loader=train_loader,
+                    test_loader=test_loader,
+                    solver_params=solver_params,
+                    save_adv_ds=False
+                )
 
-            save_experiment_result(
-                dataset=args.dataset,
-                model_name=args.model,
-                capacity=cap,
-                result_dict=test_result_payload,
-                results_path="test_results.json"
-            )
+                # stats.save_data(f"results/sec_eval_{args.dataset}_{args.model}_{cap{cap}}.gz")
+                res = stats.sec_eval_data
+                epsilons = res.param_values
+                y_true = res.Y
+                att_pred = res.Y_pred
+
+                for i, eps in enumerate(epsilons):
+                    results["results"][cap_key][f"eps_{eps}"] = metric.performance_score(y_true=y_true, y_pred=att_pred[i])
 
 
-        # ------------------------------
-        # Train to interpolation
-        # ------------------------------
-        # result = train_to_interpolation(
-        #     model_class=model_class,
-        #     model_kwargs={
-        #         "capacity": cap,
-        #         "num_classes": 10
-        #     },
-        #     train_loader=train_loader,
-        #     val_loader=val_loader,
-        #     device=device,
-        #     optimizer_name=best_cfg["optimizer"],
-        #     hyperparams=best_cfg["hyperparams"],
-        #     max_epochs=1000,
-        #     save_path=f"checkpoints/{args.model}_{args.dataset}_cap{cap}.pt"
-        # )
+            elif args.attack == "pgdlinf":
+                epsilons = EPS_REGISTRY[args.attack][(args.dataset, args.model)]
+                print(f"[INFO] Running Foolbox PGD-L∞ for epsilons = {epsilons}")
 
-        # print("Interpolation reached at epoch:", result["epoch"])
-        # print("Final val error:", result["val_error"])
+                stats = eval_foolbox_pgd_linf(
+                    model=model,
+                    test_loader=test_loader,
+                    epsilons=epsilons,
+                    device=device,
+                    steps=100 if args.dataset == "mnist" else 150
+                )
 
-        # ------------------------------
-        # Final test evaluation
-        # ------------------------------
-        # test_metrics = evaluate(
-        #     result["model"],
-        #     test_loader,
-        #     device
-        # )
-        # test_metrics = model_class.evaluate(
-        #     result["model"],
-        #     test_loader,
-        #     device
-        # )
+                for eps, acc in stats.items():
+                    results["results"][cap_key][f"eps_{eps}"] = acc
 
-        # print("Test accuracy:", test_metrics["accuracy"])
+        # ---------------- Save ----------------
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, "w") as f:
+            json.dump(results, f, indent=2)
+
+        print(f"\n[✓] Results saved to {output_path}")
+
 

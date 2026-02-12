@@ -6,10 +6,12 @@ from typing import Dict, Optional
 import os
 
 class ScalableModel(nn.Module):
-    def __init__(self, num_classes: int, capacity: int):
+    def __init__(self, num_classes: int, capacity: int, input_size: int, in_channels: int):
         super().__init__()
         self.num_classes = num_classes
         self.capacity = capacity
+        self.input_size = input_size
+        self.in_channels = in_channels
 
     # ---------- Mandatory architecture hooks ----------
     def forward_features(self, x):
@@ -203,12 +205,16 @@ class ScalableResNet(ScalableModel):
         self,
         capacity: int,
         num_classes: int = 10,
+        input_size: int = 32,  
+        in_channels: int = 3,
         base_width: int = 16,
         blocks_per_stage=(2, 2, 2)
     ):
         self.base_width = base_width
+        self.input_size = input_size
+        self.in_channels = in_channels
         self.blocks_per_stage = blocks_per_stage
-        super().__init__(num_classes, capacity)
+        super().__init__(num_classes, capacity, input_size, in_channels)
 
         self._build_backbone()
         self._build_head()
@@ -248,87 +254,89 @@ class ScalableResNet(ScalableModel):
 
 
 class ScalableCNN(ScalableModel):
-    def __init__(self, capacity, num_classes: int, in_channels: int = 3, input_size: int = 32):
+    def __init__(self, 
+                capacity, 
+                num_classes: int = 10, 
+                in_channels: int = 1, 
+                input_size: int = 28, 
+                base_width = 2):
         self.in_channels = in_channels
         self.input_size = input_size
-        super().__init__(num_classes, capacity)
+        self.base_width = base_width
+        super().__init__(num_classes, capacity, input_size, in_channels)
         
         self.build_backbone()
         self.build_head()
 
     def build_backbone(self):
-        ch = 32 * self.capacity
+        # base_width = 10
+        C = self.base_width * self.capacity
         self.features = nn.Sequential(
-            ConvBlock(self.in_channels, ch),
-            ConvBlock(ch, ch),
+            ConvBlock(self.in_channels, C),
+            ConvBlock(C, C),
             nn.MaxPool2d(2),
-            ConvBlock(ch, 2 * ch),
-            ConvBlock(2 * ch, 2 * ch),
+            ConvBlock(C, 2 * C),
+            ConvBlock(2 * C, 2 * C),
             nn.MaxPool2d(2),
         )
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        
         # Infer feature dimension automatically
         with torch.no_grad():
             dummy = torch.zeros(1, self.in_channels, self.input_size, self.input_size)
             out = self.features(dummy)
             self.out_dim = out.view(1, -1).size(1)
+            print("Inferred out_dim:", self.out_dim)
+
 
     def build_head(self):
+        C = self.base_width * self.capacity
+        self.out_dim = 2*C
         self.head = nn.Linear(self.out_dim, self.num_classes)
 
     def forward_features(self, x):
         x = self.features(x)
+        x = self.gap(x)
         return x.view(x.size(0), -1)
-    
-
-import torch
-import torch.nn as nn
 
 class ScalableMLP(ScalableModel):
     def __init__(
         self,
         capacity: int,
-        num_classes: int,
-        input_dim: int,
-        hidden_units_base: int = 128,
-        num_hidden_layers: int = 3
+        num_classes: int = 10,
+        in_channels: int = 1,
+        input_size: int = 28,
+        base_width: int = 4,
     ):
-        """
-        Fully connected MLP with scalable width.
+        self.in_channels = in_channels
+        self.input_size = input_size
+        self.input_dim = in_channels * input_size * input_size
+        self.base_width = base_width
+        super().__init__(num_classes, capacity, input_size, in_channels)
 
-        Args:
-            capacity: scaling factor for hidden units
-            num_classes: number of output classes
-            input_dim: flattened input dimension
-            hidden_units_base: base hidden units per layer
-            num_hidden_layers: number of hidden layers
-        """
-        self.input_dim = input_dim
-        self.hidden_units_base = hidden_units_base
-        self.num_hidden_layers = num_hidden_layers
-        super().__init__(num_classes, capacity)
+        self.build_backbone()
+        self.build_head()
 
-        self._build_backbone()
-        self._build_head()
+    def build_backbone(self):
+        C = self.base_width * self.capacity  # expansion width (analogous to base_width * capacity)
 
-    def _build_backbone(self):
-        layers = []
-        in_dim = self.input_dim
-        hidden_dim = self.hidden_units_base * self.capacity
+        self.features = nn.Sequential(
+            nn.Linear(self.input_dim, C),
+            nn.ReLU(inplace=True),
+            nn.Linear(C, 2 * C),    # SG 8 ->2
+            nn.ReLU(inplace=True),
+        )
 
-        for _ in range(self.num_hidden_layers):
-            layers.append(nn.Linear(in_dim, hidden_dim))
-            layers.append(nn.ReLU(inplace=True))
-            in_dim = hidden_dim
+        # Feature dimension is fixed by construction
+        self.out_dim = 2 * C        # SG 8 ->2
 
-        self.backbone = nn.Sequential(*layers)
-        self.out_dim = hidden_dim  # last hidden layer size
-
-    def _build_head(self):
+    def build_head(self):
         self.head = nn.Linear(self.out_dim, self.num_classes)
 
     def forward_features(self, x):
-        # Flatten if necessary
-        if x.dim() > 2:
-            x = x.view(x.size(0), -1)
-        return self.backbone(x)
+        # assert x.dim() == 4, \
+        #     f"Expected input shape (B, C, H, W), got {x.shape}"
+
+        x = x.view(x.size(0), -1)
+        return self.features(x)
 
