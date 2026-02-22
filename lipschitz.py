@@ -5,7 +5,8 @@ import torch
 
 from utils.models import *
 
-from lipestime.src.lipestime import LipUpperBound
+from lip_estimator.src.lipestime import LipUpperBound
+from lip_estimator.src.lipestime import LipLowerBound
 
 # -----------------------------
 # Import your model definitions

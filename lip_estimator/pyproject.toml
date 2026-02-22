@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "LipEstime"
+version = "0.1.0"
+authors = [
+  { name="Fabio Brau", email="fabio.brau@unica.it" },
+]
+description = "A short description of my project"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "requests", # Add your project dependencies here
+]
+
+[project.urls]
+"Homepage" = "https://github.com/fabiobrau/LipEstime"
+"Bug Tracker" = "https://github.com/fabiobrau/LipEstimeissues"
